@@ -15,6 +15,6 @@ spec:
     spec:
       containers:
         - name: appcontoso-container 
-          image: bhrpdevacr.azurecr.io/appcontoso:dev
+          image: bhrpdevacr.azurecr.io/appcontoso
           ports:
           - containerPort: 8080

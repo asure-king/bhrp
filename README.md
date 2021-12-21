@@ -3,6 +3,8 @@ Cloud DevOps
 
 ## Index
 1. Overview 
+    - 1.0 Prerequisites
+    - 1.1 High Level - Business Architecture
 2. Azure DevOps
     - 2.0 What is
     - 2.1 Set up your organization
@@ -28,6 +30,7 @@ Cloud DevOps
         - 4.2.1 CI generic template
         - 4.2.2 Implementing CI  
     - 4.3 Continuous Delivery
+        - 4.3.0 Set up your Azure Pipelines
         - 4.3.1 CD generic template
         - 4.3.2 Implementing CD   
 6. References
@@ -35,6 +38,31 @@ Cloud DevOps
 
 ### 1. Overview 
 In this repository you will find generic templates to implement Infrastrcure as Code, Continuous Integration, and Continuous Delivery. These templates are made to work with Azure Pipelines  
+
+#### 1.0 Prerequisites
+
+- Azure Account
+- Basic knowledge of Infrastrcure as Code, Continuous Integration, and Continuous Delivery.
+- Experience with Terraform
+
+#### 1.1 High Level - Business Architecture
+![BusinessArchitecture](images/DEMOArchi.png)
+
+##### Azure DevOps
+
+###### Azure Repos
+
+###### 1. pipeline-library
+Contains all the generic pipeline for:
+- IaC with Terraform and Azure
+- CI for java componentes with maven and gradle
+- CD for deploy images from Azure Container Registry to Azure Kubernetes Service
+
+###### 2. iac-demo
+This repository contains the instrastructure definition on Azure for this demo. It have a simple yaml that implements the generic yaml from pipelile-library
+
+###### 3. react-and-spring-data-rest
+Sample java project with spring boot and react js. It have a two yamls that implement the generic CI yaml and CD yaml from pipelile-library
 
 
 ### 2. Azure DevOps
@@ -132,9 +160,141 @@ az storage container create --name terraformrpasa --account-name terraformrpasa 
 
 #### 3.3 IaC generic template
 
-IaC-Pipeline-Template.yaml is a generic template that can be used to DEPLOY all kind of resource on Azure Cloud and Terraform. This was develop following Pipeline as code practice<sub><sup>[7]</sup></sub>
+IaC-Pipeline-Template.yaml is a generic template that can be used to desploy and destroy all kind of resource on Azure Cloud and Terraform. 
+```console
+parameters:
+- name : 'enviromentParam'
+  default: ''
+  type: string
+- name : 'enviromentAbrevParam'
+  default: ''
+  type: string
+- name: terraformVersion
+  default: ''
+  type: string
+- name: resourceGroup
+  default: ''
+  type: string
+- name: storageAccount
+  default: ''
+  type: string
+- name: containerName
+  default: ''
+  type: string
+- name: key
+  default: ''
+  type: string
+- name: serviceConnection
+  default: ''
+  type: string
+- name: pipelineEnvironment
+  default: ''
+  type: string
+- name : 'terraformAction'
+  default: 'deploy'
+  type: string
+  values:
+    - deploy
+    - destroy
 
+stages:
+  - stage: validate
+    jobs:
+      - job: validate 
+        continueOnError: false
+        steps:
+          - task: TerraformInstaller@0
+            displayName: 'install'
+            inputs:
+              terraformVersion: ${{ parameters.terraformVersion }}
+          - task: TerraformTaskV2@2
+            displayName: init
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: ${{ parameters.serviceConnection }}
+              backendAzureRmResourceGroupName: ${{ parameters.resourceGroup }}
+              backendAzureRmStorageAccountName: ${{ parameters.storageAccount }}
+              backendAzureRmContainerName: ${{ parameters.containerName }}
+              backendAzureRmKey: ${{ parameters.key }}
+          - task: TerraformTaskV2@2
+            displayName: validate
+            inputs:
+              provider: 'azurerm'
+              command: 'validate'
+  - stage: deploy
+    jobs:
+      - deployment: deploy_terraform
+        continueOnError: false
+        condition: eq('${{ parameters.terraformAction }}', 'deploy')
+        environment: ${{ parameters.pipelineEnvironment }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: TerraformInstaller@0
+                  displayName: 'install'
+                  inputs:
+                    terraformVersion: ${{ parameters.terraformVersion }}
+                - task: TerraformTaskV2@2
+                  displayName: 'init'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'init'
+                    backendServiceArm: ${{ parameters.serviceConnection }}
+                    backendAzureRmResourceGroupName: ${{ parameters.resourceGroup }}
+                    backendAzureRmStorageAccountName: ${{ parameters.storageAccount }}
+                    backendAzureRmContainerName: ${{ parameters.containerName }}
+                    backendAzureRmKey: ${{ parameters.key }}
+                - task: TerraformTaskV2@2
+                  displayName: 'plan'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'plan'
+                    environmentServiceNameAzureRM: ${{ parameters.serviceConnection }}
+                    commandOptions: -input=false -var "environment=${{ parameters.enviromentParam }}" -var "environment_abrev=${{ parameters.enviromentAbrevParam }}"
+                - task: TerraformTaskV2@2
+                  displayName: 'apply'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'apply'
+                    environmentServiceNameAzureRM: ${{ parameters.serviceConnection }}
+                    commandOptions: -input=false -var "environment=${{ parameters.enviromentParam }}" -var "environment_abrev=${{ parameters.enviromentAbrevParam }}"
+  - stage: destroy
+    jobs:
+      - deployment: destoy_terraform
+        continueOnError: false
+        condition: eq('${{ parameters.terraformAction }}', 'destroy')
+        environment: ${{ parameters.pipelineEnvironment }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: TerraformInstaller@0
+                  displayName: 'install'
+                  inputs:
+                    terraformVersion: ${{ parameters.terraformVersion }}
+                - task: TerraformTaskV2@2
+                  displayName: 'init'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'init'
+                    backendServiceArm: ${{ parameters.serviceConnection }}
+                    backendAzureRmResourceGroupName: ${{ parameters.resourceGroup }}
+                    backendAzureRmStorageAccountName: ${{ parameters.storageAccount }}
+                    backendAzureRmContainerName: ${{ parameters.containerName }}
+                    backendAzureRmKey: ${{ parameters.key }}
+                - task: TerraformTaskV2@2
+                  displayName: 'destroy'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'destroy'
+                    environmentServiceNameAzureRM: ${{ parameters.serviceConnection }}
+                    commandOptions: -input=false -var "environment=${{ parameters.enviromentParam }}" -var "environment_abrev=${{ parameters.enviromentAbrevParam }}"
 
+```
 #### 3.4 Implementing IaC
 
 #### 3.4.0 Create and set up IaC project  
@@ -264,16 +424,311 @@ Continuous integration/continuous delivery<sub><sup> [8]</sup></sub>, known as C
 
 - Finally, save your service connection
 
-#### 4.2.1
+#### 4.2.1 CI generic template
+
+[CI-Pipeline-Template.yaml] This is a general template for Continuous Integration. It works for java componentes that uses maven or gradle. 
+
+```console
+parameters:
+  - name : 'projectName'
+    default: ''
+    type: string
+  - name : 'appName'
+    default: ''
+    type: string
+  - name : 'containerRegistrySC'
+    default: ''
+    type: string
+  - name : 'buildTool'
+    default: ''
+    type: string
+    values:
+      - maven
+      - gradle
+
+stages:
+  - stage: parameters
+    displayName: Build Stage
+    jobs:
+      - job: get_parameters
+        displayName: Get Parameters
+        steps:
+          - script: echo "PROJECT_NAME= ${{ parameters.projectName }}"
+          - script: echo "APP_NAME= ${{ parameters.appName }}"
+          - script: echo "BUILD_TOOL= ${{ parameters.buildTool }}"
+          - script: echo "CONTAINER_REGISTRY= ${{ parameters.containerRegistrySC }}"
+          - script: java -version
+  - stage: build_gradle
+    displayName: Build Stage Gradle
+    jobs:
+      - job: build_job_gradle
+        displayName: Build Gradle Job
+        condition: eq('${{ parameters.buildTool }}', 'gradle')
+        steps:
+          - task: Gradle@2
+            displayName: Compile Project
+            inputs:
+              gradleWrapperFile: 'gradlew'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              tasks: 'compileJava compileTestJava'
+          - task: Gradle@2
+            displayName: Unit Tests
+            inputs:
+              gradleWrapperFile: 'gradlew'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              publishJUnitResults: yes
+              testResultsFiles: '**/TEST-*.xml'
+              tasks: 'test'
+          - task: Gradle@2
+            displayName: Build Artifact
+            inputs:
+              gradleWrapperFile: 'gradlew'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              tasks: 'assemble'
+          - task: Docker@2
+            displayName: Build and Push Docker Image
+            inputs:
+              command: buildAndPush
+              repository: ${{ parameters.appName }}
+              dockerfile: '**/Dockerfile'
+              containerRegistry: ${{ parameters.containerRegistrySC }}
+              tags: |
+                $(Build.BuildId)
+          - upload: manifests
+            artifact: manifests
+  - stage: build_maven
+    displayName: Build Stage Maven
+    jobs:
+      - job: AppValues
+        steps:
+          - task: Bash@3
+            inputs:
+              targetType: 'inline'
+              script: |
+                pomVersion=`mvn -q -Dexec.executable=echo -Dexec.args='${project.version}' --non-recursive exec:exec`
+                echo "##vso[task.setvariable variable=projectVersion;isOutput=true]$pomVersion"
+            name: MVNValues
+            displayName: Maven project parameters
+      - job: build_job_maven
+        dependsOn: AppValues
+        displayName: Build Maven Job
+        condition: eq('${{ parameters.buildTool }}', 'maven')
+        variables:
+          projectVersion: $[ dependencies.AppValues.outputs['MVNValues.projectVersion'] ]
+        steps:
+          - task: Maven@3
+            displayName: Compile Project
+            inputs:
+              mavenPomFile: 'pom.xml'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              goals: 'compile test-compile'
+          - task: Maven@3
+            displayName: Unit Tests
+            inputs:
+              mavenPomFile: 'pom.xml'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              publishJUnitResults: yes
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+              goals: 'test'
+
+          - task: Maven@3
+            displayName: Build Artifact
+            inputs:
+              mavenPomFile: 'pom.xml'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              goals: 'package'
+
+          - task: Maven@3
+            displayName: Publish Artifact
+            inputs:
+              mavenPomFile: 'pom.xml'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              goals: 'install'
+
+          - task: Docker@2
+            displayName: Build and Push Docker Image
+            inputs:
+              command: buildAndPush
+              repository: ${{ parameters.appName }}
+              dockerfile: '**/Dockerfile'
+              containerRegistry: ${{ parameters.containerRegistrySC }}
+              tags: $(Build.SourceBranchName)-$(projectVersion)
+```
 
 #### 4.2.2 Implementing CI
 
+- Go to Microservices project https://dev.azure.com/bprp/Microservices, then select 'Pipelines' 
+![AzurePipelines](images/AzurePipelineCI.png)
+
+- Click on 'Create Pipeline'
+
+- Select your code repository, then select 'react-and-spring-data-rest' 
+![AzurePipelines](images/AzurePipelineCIRepo.png)
+
+- Configure your pipeline using 'Existing Azure Pipeline YAML file'
+![AzurePipelines](images/AzurePipileIacConf.png)
+
+- Select your yaml implementation 'CI-pipeline.yaml' from your 'develop' branch
 ![AzurePipelines](images/DevelopCIImpl.png)
 
+- Review your pipeline implementation, then click on 'Run'
+![AzurePipelines](images/CIReviewPipelineImpl.png)
+
+- Wait results
 ![AzurePipelines](images/DevelopCIPipelineResult.png)
 
+- Validate
 ![AzurePipelines](images/DevelopCIPipelineResultValidate.png)
 
+#### 4.3 Continuous Delivery 
+
+#### 4.3.0 Set up your Azure Pipelines
+
+- Go to your 'Project Settings'
+![AzurePipelines](images/MicroservicesProjectSettings.png)
+
+- Under 'Pipeline' section, select 'Service Connections', then 'Create service connection'
+![AzurePipelines](images/KubernetesSC.png)
+
+- Check 'Azure Subscription', select your AKS cluster, and give a name to the service connection (k8s-dev-sc)
+![AzurePipelines](images/AKSSR-DEV.png)
+
+- Finally, save your service connection
+
+#### 4.3.1 CD generic template
+
+[CD-Pipeline-Template.yaml] This is a general template for Continuous Delivery. It will deploy an existent Azure container registry image to Azure kubernetes service. 
+
+```console
+
+parameters:
+  - name : 'projectName'
+    default: ''
+    type: string
+  - name : 'appName'
+    default: ''
+    type: string
+  - name : 'containerRegistrySC'
+    default: ''
+    type: string
+  - name : 'kubernetesSC'
+    default: ''
+    type: string
+  - name: 'pipelineEnvironment'
+    default: ''
+    type: string
+  - name: 'containerRegistry'
+    default: ''
+    type: string
+
+stages:
+  - stage: deploy_stage
+    displayName: Deploy Stage
+    jobs:
+      - job: AppValues
+        steps:
+          - task: Bash@3
+            inputs:
+              targetType: 'inline'
+              script: |
+                pomVersion=`mvn -q -Dexec.executable=echo -Dexec.args='${project.version}' --non-recursive exec:exec`
+                echo "##vso[task.setvariable variable=projectVersion;isOutput=true]$pomVersion"
+            name: MVNValues
+            displayName: Maven project parameters
+      - deployment: deploy_job_manifest
+        dependsOn: AppValues
+        displayName: Deploy Job - Kubernetes
+        variables:
+          projectVersion: $[ dependencies.AppValues.outputs['MVNValues.projectVersion'] ]
+        environment: ${{ parameters.pipelineEnvironment }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: KubernetesManifest@0
+                  displayName: Create imagePullSecret
+                  inputs:
+                    action: createSecret
+                    secretName: ${{ parameters.appName }}
+                    dockerRegistryEndpoint: ${{ parameters.containerRegistrySC }}
+                - task: KubernetesManifest@0
+                  displayName: Deploy to Kubernetes cluster
+                  inputs:
+                    action: deploy
+                    kubernetesServiceConnection: ${{ parameters.kubernetesSC }}
+                    manifests: |
+                      manifests/deployment.yml
+                      manifests/service.yml
+                    imagePullSecrets: ${{ parameters.appName }}
+                    containers: |
+                      ${{ parameters.containerRegistry }}/${{ parameters.appName }}:$(Build.SourceBranchName)-$(projectVersion)
+```
+
+#### 4.3.2 Implementing CD
+
+- Go to Microservices project https://dev.azure.com/bprp/Microservices, then select 'Pipelines' 
+![AzurePipelines](images/AzurePipelineCI.png)
+
+- Click on 'Create Pipeline'
+
+- Select your code repository, then select 'react-and-spring-data-rest' 
+![AzurePipelines](images/AzurePipelineCIRepo.png)
+
+- Configure your pipeline using 'Existing Azure Pipeline YAML file'
+![AzurePipelines](images/AzurePipileIacConf.png)
+
+- Select your yaml implementation 'CD-pipeline.yaml' from your 'develop' branch
+![AzurePipelines](images/DevelopCDImpl.png)
+
+- Review your pipeline implementation, then click on 'Run'
+![AzurePipelines](images/CDReviewPipelineImp.png)
+
+        If you get error, go to section: 5. Tips --> 5.1 Enviroment error
+
+- Wait results
+![AzurePipelines](images/DevelopCIPipelineResult.png)
+
+- Validate
+![AzurePipelines](images/DevelopCIPipelineResultValidate.png)
+
+### 5. Tips
+
+#### 5.1 CD - Enviroment error 
+
+There is a posibility that you can get an error if the enviroment you are trying to use doesn't exist.
+![AzurePipelines](images/CdEnviromentError.png)
+
+
+- Under Pipelines, select Environments. Then 'New environment'
+
+- Complete the form, and click 'Next'
+![AzurePipelines](images/Environment.png)
+
+- Select your cluster, and namespace you will deploy your component. Then 'Validate and create'
+![AzurePipelines](images/EnviConfig.png)
+
+- Set up security
+![AzurePipelines](images/EnvSecuritySepTu.png)
+
+- Select 'Security'. Then add your pipeline
+![AzurePipelines](images/EnviAddPipeline.png)
+
+- Go back to your pipeline
 
 ### 6. References
 <sub><sup>[1]</sup></sub> Terraform https://www.terraform.io/

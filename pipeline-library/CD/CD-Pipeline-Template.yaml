@@ -12,13 +12,10 @@ parameters:
   - name : 'containerRegistrySC'
     default: ''
     type: string
+  - name : 'containerRegistry'
+    default: ''
+    type: string
   - name : 'kubernetesSC'
-    default: ''
-    type: string
-  - name: 'pipelineEnvironment'
-    default: ''
-    type: string
-  - name: 'containerRegistry'
     default: ''
     type: string
 
@@ -34,6 +31,7 @@ stages:
               script: |
                 pomVersion=`mvn -q -Dexec.executable=echo -Dexec.args='${project.version}' --non-recursive exec:exec`
                 echo "##vso[task.setvariable variable=projectVersion;isOutput=true]$pomVersion"
+                echo Pom Version $pomVersion
             name: MVNValues
             displayName: Maven project parameters
       - deployment: deploy_job_manifest
@@ -41,7 +39,7 @@ stages:
         displayName: Deploy Job - Kubernetes
         variables:
           projectVersion: $[ dependencies.AppValues.outputs['MVNValues.projectVersion'] ]
-        environment: ${{ parameters.pipelineEnvironment }}
+        environment: ${{ parameters.appName }}$(Build.SourceBranchName)
         strategy:
           runOnce:
             deploy:
@@ -52,6 +50,7 @@ stages:
                   inputs:
                     action: createSecret
                     secretName: ${{ parameters.appName }}
+                    kubernetesServiceConnection: ${{ parameters.kubernetesSC }}
                     dockerRegistryEndpoint: ${{ parameters.containerRegistrySC }}
                 - task: KubernetesManifest@0
                   displayName: Deploy to Kubernetes cluster
@@ -61,6 +60,6 @@ stages:
                     manifests: |
                       manifests/deployment.yml
                       manifests/service.yml
-                    imagePullSecrets: ${{ parameters.appName }}
+                    imagePullSecrets: ${{ parameters.appName }}$(Build.SourceBranchName)$(projectVersion)
                     containers: |
                       ${{ parameters.containerRegistry }}/${{ parameters.appName }}:$(Build.SourceBranchName)-$(projectVersion)
