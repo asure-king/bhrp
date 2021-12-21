@@ -19,7 +19,6 @@ Cloud DevOps
      - 3.4 Implementing IaC 
         - 3.4.0 Create and set up IaC project 
         - 3.4.1 Set up your Azure Pipelines
-                - 3.2.3.0 Create Service Connections
         - 3.4.2 Implement Azure Pipeline Deploy
         - 3.4.3 Implement Azure Pipeline Destroy
 4. Continuous Integration and Continuous Delivery
