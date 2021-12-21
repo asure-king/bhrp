@@ -87,4 +87,11 @@ resource "azurerm_kubernetes_cluster" "aks-demo" {
     type = "SystemAssigned"
   }
 
+
+  addon_profile {
+    oms_agent {
+      enabled                    = true
+      log_analytics_workspace_id = azurerm_log_analytics_workspace.law-demo.id
+    }
+  }
 }
