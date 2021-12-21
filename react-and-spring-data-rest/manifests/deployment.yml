@@ -1,0 +1,20 @@
+apiVersion :  apps/v1
+kind: Deployment
+metadata:
+  name: appcontoso
+  namespace: microservices-dev
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: appcontoso
+  template:
+    metadata:
+      labels:
+        app: appcontoso
+    spec:
+      containers:
+        - name: appcontoso-container 
+          image: bhrpdevacr.azurecr.io/appcontoso:dev
+          ports:
+          - containerPort: 8080

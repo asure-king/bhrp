@@ -1,0 +1,141 @@
+# Deploy to Azure Kubernetes Service
+# Build and push image to Azure Container Registry; Deploy to Azure Kubernetes Service
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+parameters:
+  - name : 'projectName'
+    default: ''
+    type: string
+  - name : 'appName'
+    default: ''
+    type: string
+  - name : 'containerRegistrySC'
+    default: ''
+    type: string
+  - name : 'buildTool'
+    default: ''
+    type: string
+    values:
+      - maven
+      - gradle
+
+stages:
+  - stage: parameters
+    displayName: Build Stage
+    jobs:
+      - job: get_parameters
+        displayName: Get Parameters
+        steps:
+          - script: echo "PROJECT_NAME= ${{ parameters.projectName }}"
+          - script: echo "APP_NAME= ${{ parameters.appName }}"
+          - script: echo "BUILD_TOOL= ${{ parameters.buildTool }}"
+          - script: echo "CONTAINER_REGISTRY= ${{ parameters.containerRegistrySC }}"
+          - script: java -version
+  - stage: build_gradle
+    displayName: Build Stage Gradle
+    jobs:
+      - job: build_job_gradle
+        displayName: Build Gradle Job
+        condition: eq('${{ parameters.buildTool }}', 'gradle')
+        steps:
+          - task: Gradle@2
+            displayName: Compile Project
+            inputs:
+              gradleWrapperFile: 'gradlew'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              tasks: 'compileJava compileTestJava'
+          - task: Gradle@2
+            displayName: Unit Tests
+            inputs:
+              gradleWrapperFile: 'gradlew'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              publishJUnitResults: yes
+              testResultsFiles: '**/TEST-*.xml'
+              tasks: 'test'
+          - task: Gradle@2
+            displayName: Build Artifact
+            inputs:
+              gradleWrapperFile: 'gradlew'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              tasks: 'assemble'
+          - task: Docker@2
+            displayName: Build and Push Docker Image
+            inputs:
+              command: buildAndPush
+              repository: ${{ parameters.appName }}
+              dockerfile: '**/Dockerfile'
+              containerRegistry: ${{ parameters.containerRegistrySC }}
+              tags: |
+                $(Build.BuildId)
+          - upload: manifests
+            artifact: manifests
+  - stage: build_maven
+    displayName: Build Stage Maven
+    jobs:
+      - job: AppValues
+        steps:
+          - task: Bash@3
+            inputs:
+              targetType: 'inline'
+              script: |
+                pomVersion=`mvn -q -Dexec.executable=echo -Dexec.args='${project.version}' --non-recursive exec:exec`
+                echo "##vso[task.setvariable variable=projectVersion;isOutput=true]$pomVersion"
+            name: MVNValues
+            displayName: Maven project parameters
+      - job: build_job_maven
+        dependsOn: AppValues
+        displayName: Build Maven Job
+        condition: eq('${{ parameters.buildTool }}', 'maven')
+        variables:
+          projectVersion: $[ dependencies.AppValues.outputs['MVNValues.projectVersion'] ]
+        steps:
+          - task: Maven@3
+            displayName: Compile Project
+            inputs:
+              mavenPomFile: 'pom.xml'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              goals: 'compile test-compile'
+          - task: Maven@3
+            displayName: Unit Tests
+            inputs:
+              mavenPomFile: 'pom.xml'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              publishJUnitResults: yes
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+              goals: 'test'
+
+          - task: Maven@3
+            displayName: Build Artifact
+            inputs:
+              mavenPomFile: 'pom.xml'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              goals: 'package'
+
+          - task: Maven@3
+            displayName: Publish Artifact
+            inputs:
+              mavenPomFile: 'pom.xml'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.8'
+              jdkArchitectureOption: 'x64'
+              goals: 'install'
+
+          - task: Docker@2
+            displayName: Build and Push Docker Image
+            inputs:
+              command: buildAndPush
+              repository: ${{ parameters.appName }}
+              dockerfile: '**/Dockerfile'
+              containerRegistry: ${{ parameters.containerRegistrySC }}
+              tags: $(Build.SourceBranchName)-$(projectVersion)

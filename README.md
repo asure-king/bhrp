@@ -1,4 +1,4 @@
-DevOps Pipelines
+Cloud DevOps
 ============
 
 ## Index
@@ -19,9 +19,17 @@ DevOps Pipelines
         - 3.4.1 Set up your Azure Pipelines
                 - 3.2.3.0 Create Service Connections
         - 3.4.2 Implement Azure Pipeline Deploy
-        - 3.4.3 Implement Azure Pipeline Destroy    
-4. Continuous Integration
-5. Continuous Delivery
+        - 3.4.3 Implement Azure Pipeline Destroy
+4. Continuous Integration and Continuous Delivery
+    - 4.0 What is
+    - 4.1 Create and set up Microservices project
+    - 4.2 Continuous Integration
+        - 4.2.0 Set up your Azure Pipelines
+        - 4.2.1 CI generic template
+        - 4.2.2 Implementing CI  
+    - 4.3 Continuous Delivery
+        - 4.3.1 CD generic template
+        - 4.3.2 Implementing CD   
 6. References
 
 
@@ -213,6 +221,58 @@ You can create a connection<sub><sup>[6]</sup></sub> from Azure Pipelines to ext
 - Wait results, and validate!
 ![AzurePipelines](images/AzurePipelineIacResult.png)
 
+### 4. Continuous Integration and Continuous Delivery
+
+#### 4.0 What is 
+Continuous integration/continuous delivery<sub><sup> [8]</sup></sub>, known as CI/CD, is a set of processes that help software development teams deliver code changes more frequently and reliably. CI/CD is part of DevOps, which helps shorten the software development lifecycle.
+
+#### 4.1 Create and set up Microservices project
+
+- Go to your Azure DevOps organization https://dev.azure.com/bprp/
+
+- Click 'New project' 
+![DevOps](images/AzureIaCProject.png)
+
+- Complete 'Project name' with "Microservices", and 'create'
+![DevOps](images/AzureMicroProjectValues.png)
+
+- Select 'Repos' option
+![DevOps](images/AzureRepos.png)
+
+- Create a new repository called 'react-and-spring-data-rest'
+![DevOps](images/AzreReposMicroRepositoryCRATE.png)
+
+- Upload the content of the folder react-and-spring-data-rest in this repository
+![DevOps](images/AzureRepoReactLibrary.png)
+
+- Create 'develop' and 'qa' branches
+![DevOps](images/AzureReactDevelop.png)
+![DevOps](images/AzureReactQA.png)
+
+#### 4.2 Continuous Integration
+
+#### 4.2.0 Set up your Azure Pipelines
+
+- Go to your 'Project Settings'
+![AzurePipelines](images/MicroservicesProjectSettings.png)
+
+- Under 'Pipeline' section, select 'Service Connections', then 'Create service connection'
+![AzurePipelines](images/DockerRegistrySC.png)
+
+- Check 'Azure Container Registry', select your Container Registry give a name to the service connection (microservices-dev)
+![AzurePipelines](images/CRSR-DEV.png)
+
+- Finally, save your service connection
+
+#### 4.2.1
+
+#### 4.2.2 Implementing CI
+
+![AzurePipelines](images/DevelopCIImpl.png)
+
+![AzurePipelines](images/DevelopCIPipelineResult.png)
+
+![AzurePipelines](images/DevelopCIPipelineResultValidate.png)
 
 
 ### 6. References
@@ -231,3 +291,5 @@ You can create a connection<sub><sup>[6]</sup></sub> from Azure Pipelines to ext
 <sub><sup>[6]</sup></sub> Azure DevOps Service Connection https://docs.microsoft.com/en-us/azure/devops/pipelines/library/service-endpoints?view=azure-devops&tabs=yaml
 
 <sub><sup>[7]</sup></sub> Pipeline as code https://about.gitlab.com/topics/ci-cd/pipeline-as-code/
+
+<sub><sup>[8]</sup></sub> What Is CI/CD https://www.cisco.com/c/en/us/solutions/data-center/data-center-networking/what-is-ci-cd.html

@@ -1,0 +1,22 @@
+# Deploy to Azure Kubernetes Service
+# Build and push image to Azure Container Registry; Deploy to Azure Kubernetes Service
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger: none
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: DevOps/pipeline-library
+
+variables:
+  projectName: Microservices
+  appName: appcontoso
+  buildTool: maven
+
+stages:
+- template: CD/CD-Pipeline-Template.yml@templates
+  parameters:
+    projectName: ${{ variables.projectName }}
+    appName: ${{ variables.appName }}

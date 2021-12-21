@@ -1,0 +1,66 @@
+# Deploy to Azure Kubernetes Service
+# Build and push image to Azure Container Registry; Deploy to Azure Kubernetes Service
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+parameters:
+  - name : 'projectName'
+    default: ''
+    type: string
+  - name : 'appName'
+    default: ''
+    type: string
+  - name : 'containerRegistrySC'
+    default: ''
+    type: string
+  - name : 'kubernetesSC'
+    default: ''
+    type: string
+  - name: 'pipelineEnvironment'
+    default: ''
+    type: string
+  - name: 'containerRegistry'
+    default: ''
+    type: string
+
+stages:
+  - stage: deploy_stage
+    displayName: Deploy Stage
+    jobs:
+      - job: AppValues
+        steps:
+          - task: Bash@3
+            inputs:
+              targetType: 'inline'
+              script: |
+                pomVersion=`mvn -q -Dexec.executable=echo -Dexec.args='${project.version}' --non-recursive exec:exec`
+                echo "##vso[task.setvariable variable=projectVersion;isOutput=true]$pomVersion"
+            name: MVNValues
+            displayName: Maven project parameters
+      - deployment: deploy_job_manifest
+        dependsOn: AppValues
+        displayName: Deploy Job - Kubernetes
+        variables:
+          projectVersion: $[ dependencies.AppValues.outputs['MVNValues.projectVersion'] ]
+        environment: ${{ parameters.pipelineEnvironment }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: KubernetesManifest@0
+                  displayName: Create imagePullSecret
+                  inputs:
+                    action: createSecret
+                    secretName: ${{ parameters.appName }}
+                    dockerRegistryEndpoint: ${{ parameters.containerRegistrySC }}
+                - task: KubernetesManifest@0
+                  displayName: Deploy to Kubernetes cluster
+                  inputs:
+                    action: deploy
+                    kubernetesServiceConnection: ${{ parameters.kubernetesSC }}
+                    manifests: |
+                      manifests/deployment.yml
+                      manifests/service.yml
+                    imagePullSecrets: ${{ parameters.appName }}
+                    containers: |
+                      ${{ parameters.containerRegistry }}/${{ parameters.appName }}:$(Build.SourceBranchName)-$(projectVersion)
