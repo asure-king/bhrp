@@ -1,0 +1,37 @@
+# Deploy to Azure Kubernetes Service
+# Build and push image to Azure Container Registry; Deploy to Azure Kubernetes Service
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger: none
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: DevOps/pipeline-library
+
+variables:
+  enviromentParam: STAGE
+  enviromentAbrevParam: STG
+  terraformVersion: '1.1.2'
+  resourceGroup: 'devopsRG'
+  storageAccount: 'terraformrpasa'
+  containerName: 'terraformrpasa'
+  key: 'terraform.tfstate'
+  serviceConnection: 'terraformfull-sc'
+  pipelineEnvironment: 'demoenviroment'
+  terraformAction: 'deploy'
+
+stages:
+- template: IaC/IaC-Pipeline-Template.yml@templates
+  parameters:
+    enviromentParam: ${{ variables.enviromentParam }}
+    enviromentAbrevParam: ${{ variables.enviromentAbrevParam }}
+    terraformVersion: ${{ variables.terraformVersion }}
+    resourceGroup: ${{ variables.resourceGroup }}
+    storageAccount: ${{ variables.storageAccount }}
+    containerName: ${{ variables.containerName }}
+    key: ${{ variables.key }}
+    serviceConnection: ${{ variables.serviceConnection }}
+    pipelineEnvironment: ${{ variables.pipelineEnvironment }}
+    terraformAction: ${{ variables.terraformAction }}

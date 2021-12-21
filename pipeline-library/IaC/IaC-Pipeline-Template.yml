@@ -1,0 +1,131 @@
+parameters:
+- name : 'enviromentParam'
+  default: ''
+  type: string
+- name : 'enviromentAbrevParam'
+  default: ''
+  type: string
+- name: terraformVersion
+  default: ''
+  type: string
+- name: resourceGroup
+  default: ''
+  type: string
+- name: storageAccount
+  default: ''
+  type: string
+- name: containerName
+  default: ''
+  type: string
+- name: key
+  default: ''
+  type: string
+- name: serviceConnection
+  default: ''
+  type: string
+- name: pipelineEnvironment
+  default: ''
+  type: string
+- name : 'terraformAction'
+  default: 'deploy'
+  type: string
+  values:
+    - deploy
+    - destroy
+
+stages:
+  - stage: validate
+    jobs:
+      - job: validate 
+        continueOnError: false
+        steps:
+          - task: TerraformInstaller@0
+            displayName: 'install'
+            inputs:
+              terraformVersion: ${{ parameters.terraformVersion }}
+          - task: TerraformTaskV2@2
+            displayName: init
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: ${{ parameters.serviceConnection }}
+              backendAzureRmResourceGroupName: ${{ parameters.resourceGroup }}
+              backendAzureRmStorageAccountName: ${{ parameters.storageAccount }}
+              backendAzureRmContainerName: ${{ parameters.containerName }}
+              backendAzureRmKey: ${{ parameters.key }}
+          - task: TerraformTaskV2@2
+            displayName: validate
+            inputs:
+              provider: 'azurerm'
+              command: 'validate'
+  - stage: deploy
+    jobs:
+      - deployment: deploy_terraform
+        continueOnError: false
+        condition: eq('${{ parameters.terraformAction }}', 'deploy')
+        environment: ${{ parameters.pipelineEnvironment }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: TerraformInstaller@0
+                  displayName: 'install'
+                  inputs:
+                    terraformVersion: ${{ parameters.terraformVersion }}
+                - task: TerraformTaskV2@2
+                  displayName: 'init'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'init'
+                    backendServiceArm: ${{ parameters.serviceConnection }}
+                    backendAzureRmResourceGroupName: ${{ parameters.resourceGroup }}
+                    backendAzureRmStorageAccountName: ${{ parameters.storageAccount }}
+                    backendAzureRmContainerName: ${{ parameters.containerName }}
+                    backendAzureRmKey: ${{ parameters.key }}
+                - task: TerraformTaskV2@2
+                  displayName: 'plan'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'plan'
+                    environmentServiceNameAzureRM: ${{ parameters.serviceConnection }}
+                    commandOptions: -input=false -var "environment=${{ parameters.enviromentParam }}" -var "environment_abrev=${{ parameters.enviromentAbrevParam }}"
+                - task: TerraformTaskV2@2
+                  displayName: 'apply'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'apply'
+                    environmentServiceNameAzureRM: ${{ parameters.serviceConnection }}
+                    commandOptions: -input=false -var "environment=${{ parameters.enviromentParam }}" -var "environment_abrev=${{ parameters.enviromentAbrevParam }}"
+  - stage: destroy
+    jobs:
+      - deployment: destoy_terraform
+        continueOnError: false
+        condition: eq('${{ parameters.terraformAction }}', 'destroy')
+        environment: ${{ parameters.pipelineEnvironment }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: TerraformInstaller@0
+                  displayName: 'install'
+                  inputs:
+                    terraformVersion: ${{ parameters.terraformVersion }}
+                - task: TerraformTaskV2@2
+                  displayName: 'init'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'init'
+                    backendServiceArm: ${{ parameters.serviceConnection }}
+                    backendAzureRmResourceGroupName: ${{ parameters.resourceGroup }}
+                    backendAzureRmStorageAccountName: ${{ parameters.storageAccount }}
+                    backendAzureRmContainerName: ${{ parameters.containerName }}
+                    backendAzureRmKey: ${{ parameters.key }}
+                - task: TerraformTaskV2@2
+                  displayName: 'destroy'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'destroy'
+                    environmentServiceNameAzureRM: ${{ parameters.serviceConnection }}
+                    commandOptions: -input=false -var "environment=${{ parameters.enviromentParam }}" -var "environment_abrev=${{ parameters.enviromentAbrevParam }}"
